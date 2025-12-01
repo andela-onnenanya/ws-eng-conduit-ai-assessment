@@ -1,7 +1,7 @@
 import { EntityManager, QueryOrder, wrap } from '@mikro-orm/core';
 import { EntityRepository } from '@mikro-orm/mysql';
 import { InjectRepository } from '@mikro-orm/nestjs';
-import { Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 
 import { User } from '../user/user.entity';
 import { Article } from './article.entity';
@@ -155,6 +155,7 @@ export class ArticleService {
     );
     const article = new Article(user!, dto.title, dto.description, dto.body);
     article.tagList.push(...dto.tagList);
+    article.coAuthorEmails = (dto.coAuthorEmails ?? []).map((e) => e.trim().toLowerCase());
     user?.articles.add(article);
     await this.em.flush();
 
@@ -167,7 +168,17 @@ export class ArticleService {
       { populate: ['followers', 'favorites', 'articles'] },
     );
     const article = await this.articleRepository.findOne({ slug }, { populate: ['author'] });
+    if (!article) {
+      throw new HttpException({ message: 'Article not found' }, HttpStatus.NOT_FOUND);
+    }
+    const normalizedEmails = (article.coAuthorEmails ?? []).map((e) => e.trim().toLowerCase());
+    const canEdit =
+      article.author.id === user!.id || normalizedEmails.includes(user!.email.toLowerCase());
+    if (!canEdit) {
+      throw new HttpException({ message: 'Forbidden' }, HttpStatus.FORBIDDEN);
+    }
     wrap(article).assign(articleData);
+    article.coAuthorEmails = (article.coAuthorEmails ?? []).map((e) => e.trim().toLowerCase());
     await this.em.flush();
 
     return { article: article!.toJSON(user!) };

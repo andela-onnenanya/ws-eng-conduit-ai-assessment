@@ -58,7 +58,7 @@ async function load() {
     store.dispatch(endLoad());
     return;
   }
-  axios.defaults.headers.Authorization = `Token ${token}`;
+  axios.defaults.headers.common.Authorization = `Token ${token}`;
 
   try {
     store.dispatch(loadUser(await getUser()));

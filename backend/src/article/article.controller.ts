@@ -1,15 +1,22 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, HttpException, HttpStatus } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { User } from '../user/user.decorator';
 import { IArticleRO, IArticlesRO, ICommentsRO } from './article.interface';
 import { ArticleService } from './article.service';
 import { CreateArticleDto, CreateCommentDto } from './dto';
+import { EntityManager } from '@mikro-orm/core';
+import { Article } from './article.entity';
+import { ArticleLockService } from './article-lock.service';
 
 @ApiBearerAuth()
 @ApiTags('articles')
 @Controller('articles')
 export class ArticleController {
-  constructor(private readonly articleService: ArticleService) {}
+  constructor(
+    private readonly articleService: ArticleService,
+    private readonly lockService: ArticleLockService,
+    private readonly em: EntityManager,
+  ) {}
 
   @ApiOperation({ summary: 'Get all articles' })
   @ApiResponse({ status: 200, description: 'Return all articles.' })
@@ -49,11 +56,20 @@ export class ArticleController {
   @ApiResponse({ status: 403, description: 'Forbidden.' })
   @Put(':slug')
   async update(
-    @User('id') user: number,
+    @User('id') userId: number,
+    @User('username') username: string,
     @Param() params: Record<string, string>,
     @Body('article') articleData: CreateArticleDto,
   ) {
-    return this.articleService.update(+user, params.slug, articleData);
+    const article = await this.em.findOne(Article, { slug: params.slug });
+    if (!article) {
+      throw new HttpException({ message: 'Article not found' }, HttpStatus.NOT_FOUND);
+    }
+    const status = await this.lockService.checkLock(article.id);
+    if (status.locked && status.lockedBy !== username) {
+      throw new HttpException({ message: 'Locked' }, 423);
+    }
+    return this.articleService.update(+userId, params.slug, articleData);
   }
 
   @ApiOperation({ summary: 'Delete article' })
@@ -99,5 +115,48 @@ export class ArticleController {
   @Delete(':slug/favorite')
   async unFavorite(@User('id') userId: number, @Param('slug') slug: string) {
     return this.articleService.unFavorite(userId, slug);
+  }
+
+  @Post(':slug/lock')
+  async acquireArticleLock(@User('id') userId: number, @Param('slug') slug: string) {
+    const article = await this.em.findOne(Article, { slug });
+    if (!article) {
+      throw new HttpException({ message: 'Article not found' }, HttpStatus.NOT_FOUND);
+    }
+    return this.lockService.acquireLock(article.id, userId);
+  }
+
+  @Delete(':slug/lock')
+  async releaseArticleLock(@User('id') userId: number, @Param('slug') slug: string) {
+    const article = await this.em.findOne(Article, { slug });
+    if (!article) {
+      throw new HttpException({ message: 'Article not found' }, HttpStatus.NOT_FOUND);
+    }
+    await this.lockService.releaseLock(article.id, userId);
+    return { success: true };
+  }
+
+  @Put(':slug/lock/heartbeat')
+  async heartbeatArticleLock(@User('id') userId: number, @Param('slug') slug: string) {
+    const article = await this.em.findOne(Article, { slug });
+    if (!article) {
+      throw new HttpException({ message: 'Article not found' }, HttpStatus.NOT_FOUND);
+    }
+    const success = await this.lockService.updateHeartbeat(article.id, userId);
+    return { success };
+  }
+
+  @Get(':slug/lock')
+  async checkArticleLock(@Param('slug') slug: string) {
+    console.log('[ArticleController.checkArticleLock] slug:', slug);
+    const article = await this.em.findOne(Article, { slug });
+    if (!article) {
+      console.log('[ArticleController.checkArticleLock] Article not found for slug:', slug);
+      throw new HttpException({ message: 'Article not found' }, HttpStatus.NOT_FOUND);
+    }
+    console.log('[ArticleController.checkArticleLock] article.id:', article.id);
+    const result = await this.lockService.checkLock(article.id);
+    console.log('[ArticleController.checkArticleLock] service result:', result);
+    return result;
   }
 }

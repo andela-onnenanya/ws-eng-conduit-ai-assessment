@@ -1,6 +1,6 @@
 import { Err, Ok, Result } from '@hqoss/monads';
 import axios, { AxiosError } from 'axios';
-import { array, object, string } from 'decoders';
+import { array, object, string, nullable } from 'decoders';
 import settings from '../config/settings';
 import {
   Article,
@@ -140,4 +140,28 @@ export async function createComment(slug: string, body: string): Promise<Comment
 
 export async function deleteArticle(slug: string): Promise<void> {
   await axios.delete(`articles/${slug}`);
+}
+
+export async function getUsers(): Promise<Array<{ username: string; email: string; image?: string | null }>> {
+  const { data } = await axios.get('users');
+  return array(object({ username: string, email: string, image: nullable(string) })).verify(data);
+}
+
+export async function acquireLock(slug: string): Promise<{ success: boolean; lockedBy?: string }> {
+  const { data } = await axios.post(`articles/${slug}/lock`);
+  return data;
+}
+
+export async function releaseLock(slug: string): Promise<void> {
+  await axios.delete(`articles/${slug}/lock`);
+}
+
+export async function heartbeatLock(slug: string): Promise<{ success: boolean }> {
+  const { data } = await axios.put(`articles/${slug}/lock/heartbeat`);
+  return data;
+}
+
+export async function checkLock(slug: string): Promise<{ locked: boolean; lockedBy?: string }> {
+  const { data } = await axios.get(`articles/${slug}/lock`);
+  return data;
 }

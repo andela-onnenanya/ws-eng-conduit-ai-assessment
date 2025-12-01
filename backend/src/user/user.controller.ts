@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpException, Param, Post, Put, UsePipes, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpException, Param, Post, Put, UsePipes } from '@nestjs/common';
 import { ValidationPipe } from '../shared/pipes/validation.pipe';
 import { CreateUserDto, LoginUserDto, UpdateUserDto } from './dto';
 import { User } from './user.decorator';
@@ -50,7 +50,8 @@ export class UserController {
   }
 
   @Get('users')
-  async findAll(@Query() query: Record<string, string>) {
-    return this.userService.findAllWithPagination(query);
+  async listUsers(): Promise<Array<{ username: string; email: string; image?: string }>> {
+    const users = await this.userService.findAll();
+    return users.map((u) => ({ username: u.username, email: u.email, image: u.image }));
   }
 }

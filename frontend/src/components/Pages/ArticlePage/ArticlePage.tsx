@@ -112,7 +112,11 @@ function ArticleMeta({
     <div className='article-meta'>
       <ArticleAuthorInfo article={article} />
 
-      {user && user.username === article.author.username ? (
+      {user &&
+      (user.username === article.author.username ||
+        (article.coAuthorEmails ?? [])
+          .map((e) => e.trim().toLowerCase())
+          .includes(user.email.toLowerCase())) ? (
         <OwnerArticleMetaActions article={article} deletingArticle={deletingArticle} />
       ) : (
         <NonOwnerArticleMetaActions

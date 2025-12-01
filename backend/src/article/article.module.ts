@@ -7,11 +7,14 @@ import { ArticleController } from './article.controller';
 import { Article } from './article.entity';
 import { ArticleService } from './article.service';
 import { Comment } from './comment.entity';
+import { ArticleLock } from './article-lock.entity';
+import { ArticleLockService } from './article-lock.service';
+import { ArticleLockScheduler } from './article-lock.scheduler';
 
 @Module({
   controllers: [ArticleController],
-  imports: [MikroOrmModule.forFeature({ entities: [Article, Comment, User] }), UserModule],
-  providers: [ArticleService],
+  imports: [MikroOrmModule.forFeature({ entities: [Article, Comment, ArticleLock, User] }), UserModule],
+  providers: [ArticleService, ArticleLockService, ArticleLockScheduler],
 })
 export class ArticleModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
@@ -26,6 +29,9 @@ export class ArticleModule implements NestModule {
         { path: 'articles/:slug/comments/:id', method: RequestMethod.DELETE },
         { path: 'articles/:slug/favorite', method: RequestMethod.POST },
         { path: 'articles/:slug/favorite', method: RequestMethod.DELETE },
+        { path: 'articles/:slug/lock', method: RequestMethod.POST },
+        { path: 'articles/:slug/lock', method: RequestMethod.DELETE },
+        { path: 'articles/:slug/lock/heartbeat', method: RequestMethod.PUT },
       );
   }
 }

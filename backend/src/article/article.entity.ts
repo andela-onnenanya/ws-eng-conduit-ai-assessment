@@ -40,6 +40,9 @@ export class Article {
   @Property({ type: ArrayType, fieldName: 'tag_list' })
   tagList: string[] = [];
 
+  @Property({ type: ArrayType, fieldName: 'co_author_emails' })
+  coAuthorEmails: string[] = [];
+
   @ManyToOne(() => User, { fieldName: 'author_id' })
   author: User;
 
